@@ -432,7 +432,7 @@ footer button{border:0; background:transparent; color:var(--olv); font-weight:80
 <div class="sheet" id="shLogin">
   <div class="sh-h"><h3>🔐 دخول الموظفين</h3><button class="x" data-a="closeSheets">✕</button></div>
   <div class="sh-b">
-    <div class="fld"><label>اسم المستخدم</label><input id="lgU" autocomplete="off"></div>
+    <div class="fld"><label>اسم المستخدم</label><input id="lgU" autocapitalize="none" autocomplete="username" spellcheck="false" autocomplete="off"></div>
     <div class="fld"><label>كلمة السر</label><input id="lgP" type="password"></div>
     <div class="note">الدخول بـ<b>اسم المستخدم</b> الخاص بفريق المحل (مش إيميل) — الإيميل محلو بس بكرت ☁️ السحابة بالإعدادات.</div>
   </div>
@@ -674,11 +674,16 @@ function seed(){
 /* ---------- data layer (localStorage cache + Firestore sync) ---------- */
 let D;
 function load(){ try{ const r=localStorage.getItem(LS); D=r?JSON.parse(r):seed(); }catch(e){ D=seed(); } if(!D.custs)D.custs=[]; if(D.set.ideas===undefined)D.set.ideas='';
-  // ترقية أمنية: حذف حساب admin القديم نهائياً + ضمان وجود حساب المالك DAM
-  const DAMH='c1b9ade674f5b499b52be33f17ade3411670657e1b4df93ead8c10aeb5564510';
-  D.users=(D.users||[]).filter(u=>u.user!=='admin');
-  if(!D.users.some(u=>u.user==='DAM'))D.users.push({id:'u1',nm:'فاروق',user:'DAM',pass:DAMH,role:'admin',phone:''});
+  D.users=D.users||[];ensureOwner();
   save(); }
+// حساب المالك: يُعاد إصلاحه تلقائياً محلياً وعلى السحابة إذا لقينا لائحة قديمة
+const DAMH='c1b9ade674f5b499b52be33f17ade3411670657e1b4df93ead8c10aeb5564510';
+function ensureOwner(){
+  let ch=false;
+  if((D.users||[]).some(u=>u.user==='admin')){D.users=D.users.filter(u=>u.user!=='admin');ch=true;}
+  if(!D.users.some(u=>u.user==='DAM')){D.users.push({id:'u1',nm:'فاروق',user:'DAM',pass:DAMH,role:'admin',phone:''});ch=true;}
+  return ch;
+}
 function saveLocal(){ try{ localStorage.setItem(LS,JSON.stringify(D)); }catch(e){} }
 function save(){ saveLocal(); cloudPush(); }
 
@@ -728,7 +733,10 @@ function startSync(){
         if(csess){const c2=custById(csess.id);if(c2)csess=c2;else{csess=null;try{localStorage.removeItem(LSS);}catch(e){}}}
         rAcctBtn();
       }
+      let fixOwner=false;
+      if(col==='users')fixOwner=ensureOwner();
       saveLocal();rAll();applying=false;
+      if(fixOwner)save(); // يمسح admin القديم من السحابة وبيثبّت DAM
     },()=>{});
   });
   fdb.collection('meta').doc('set').onSnapshot(d=>{
@@ -793,8 +801,44 @@ function rCloudCard(){
   const fm=$('#cloudForm');if(fm)fm.style.display=u?'none':'';
   const ub=$('#fbUnlinkBtn');if(ub)ub.style.display=u?'':'none';
 }
-/* تشفير كلمات السر (SHA-256) — بدل تخزينها مكشوفة */
-async function sha(s){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('mountak·'+s));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');}catch(e){return s;}}
+/* تشفير كلمات السر (SHA-256) — بدل تخزينها مكشوفة. مع بديل JS كامل حتى يشتغل بأي بيئة */
+function jsSha256(str){
+  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const b=new TextEncoder().encode(str),L=b.length,bitLen=L*8;
+  const padded=new Uint8Array((((L+8)>>6)<<6)+64);
+  padded.set(b);padded[L]=0x80;
+  const dv=new DataView(padded.buffer);
+  dv.setUint32(padded.length-4,bitLen>>>0);
+  dv.setUint32(padded.length-8,Math.floor(bitLen/0x100000000));
+  const rr=(x,n)=>((x>>>n)|(x<<(32-n)))>>>0;
+  const w=new Array(64);
+  for(let off=0;off<padded.length;off+=64){
+    for(let i=0;i<16;i++)w[i]=dv.getUint32(off+i*4);
+    for(let i=16;i<64;i++){
+      const s0=rr(w[i-15],7)^rr(w[i-15],18)^(w[i-15]>>>3);
+      const s1=rr(w[i-2],17)^rr(w[i-2],19)^(w[i-2]>>>10);
+      w[i]=(w[i-16]+s0+w[i-7]+s1)>>>0;
+    }
+    let[a,b2,c,d,e,f,g,h]=H;
+    for(let i=0;i<64;i++){
+      const S1=rr(e,6)^rr(e,11)^rr(e,25),ch=(e&f)^(~e&g);
+      const t1=(h+S1+ch+K[i]+w[i])>>>0;
+      const S0=rr(a,2)^rr(a,13)^rr(a,22),mj=(a&b2)^(a&c)^(b2&c);
+      const t2=(S0+mj)>>>0;
+      h=g;g=f;f=e;e=(d+t1)>>>0;d=c;c=b2;b2=a;a=(t1+t2)>>>0;
+    }
+    H=[(H[0]+a)>>>0,(H[1]+b2)>>>0,(H[2]+c)>>>0,(H[3]+d)>>>0,(H[4]+e)>>>0,(H[5]+f)>>>0,(H[6]+g)>>>0,(H[7]+h)>>>0];
+  }
+  return H.map(x=>x.toString(16).padStart(8,'0')).join('');
+}
+async function sha(s){
+  const t='mountak·'+s;
+  try{
+    const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(t));
+    return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+  }catch(e){return jsSha256(t);}
+}
 const isHash=v=>/^[a-f0-9]{64}$/.test(v||'');
 const prod=id=>D.prods.find(p=>p.id===id);
 const cat=id=>D.cats.find(c=>c.id===id);
