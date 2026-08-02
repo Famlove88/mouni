@@ -325,6 +325,7 @@ footer button{border:0; background:transparent; color:var(--olv); font-weight:80
     <div class="links">
       <button data-a="waStore">💬 واتساب المحل</button>
       <button data-a="openAcct">👤 حسابي</button>
+      <button data-a="openShare">📣 شارك التطبيق</button>
       <button data-a="openTrack">📍 تتبّع طلبك</button>
       <button data-a="pwaInstall" id="instLink" style="display:none">📲 نزّل التطبيق</button>
       <button data-a="openLogin">🔐 دخول الموظفين</button>
@@ -433,7 +434,7 @@ footer button{border:0; background:transparent; color:var(--olv); font-weight:80
   <div class="sh-b">
     <div class="fld"><label>اسم المستخدم</label><input id="lgU" autocomplete="off"></div>
     <div class="fld"><label>كلمة السر</label><input id="lgP" type="password"></div>
-    <div class="note">🧪 للتجربة: المدير <b dir="ltr">admin / 1234</b> — الموظف <b dir="ltr">ali / 1111</b></div>
+    <div class="note">الدخول بـ<b>اسم المستخدم</b> الخاص بفريق المحل (مش إيميل) — الإيميل محلو بس بكرت ☁️ السحابة بالإعدادات.</div>
   </div>
   <div class="sh-f"><button class="btn blk" data-a="doLogin">دخول</button></div>
 </div>
@@ -449,6 +450,7 @@ footer button{border:0; background:transparent; color:var(--olv); font-weight:80
       <div class="fld"><label>رقم التلفون</label><input id="ciPhone" inputmode="tel" dir="ltr" style="text-align:right" placeholder="03 123 456"></div>
       <div class="fld"><label>كلمة السر</label><input id="ciPass" type="password"></div>
       <button class="btn blk" data-a="custLogin">دخول</button>
+      <div class="hint" style="margin-top:12px;text-align:center">صاحب المحل أو موظف؟ <button data-a="swapToStaff" style="border:0;background:none;color:var(--olv);font-weight:800;text-decoration:underline;font-size:12.5px">🔐 فوت من دخول الموظفين</button></div>
     </div>
     <div id="caUp" style="display:none">
       <div class="fld"><label>الاسم الكامل *</label><input id="cuName" placeholder="مثلاً: أبو علي"></div>
@@ -480,6 +482,24 @@ footer button{border:0; background:transparent; color:var(--olv); font-weight:80
     <div id="acOrders"></div>
   </div>
   <div class="sh-f"><button class="btn gh blk" data-a="custLogout">تسجيل خروج</button></div>
+</div>
+
+<div class="sheet" id="shShare">
+  <div class="sh-h"><h3>📣 شارك مونتك</h3><button class="x" data-a="closeSheets">✕</button></div>
+  <div class="sh-b" style="text-align:center">
+    <div class="hint" style="margin-bottom:10px">وجّه كاميرا التلفون عالباركود — بيفتح التطبيق دغري 📲</div>
+    <canvas id="qrCv" style="width:min(76vw,300px);height:auto;border:1.5px solid var(--line);border-radius:14px;background:#fff"></canvas>
+    <div class="mini num" id="shareUrl" dir="ltr" style="margin:10px 4px;word-break:break-all"></div>
+    <div style="display:flex;flex-direction:column;gap:8px">
+      <button class="btn wa blk" data-a="shareWA">💬 شارك عالواتساب</button>
+      <button class="btn blk" data-a="shareNative">📤 مشاركة…</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn gh" style="flex:1" data-a="copyLink">📋 نسخ الرابط</button>
+        <button class="btn gh" style="flex:1" data-a="dlQR">📥 حفظ الباركود</button>
+      </div>
+    </div>
+    <div class="hint" style="margin-top:10px">💡 اطبع الباركود وعلّقو عالمحل وع سيارة التوصيل — مسحة وحدة وبينزل التطبيق</div>
+  </div>
 </div>
 
 <div class="sheet" id="shProd">
@@ -632,15 +652,14 @@ function seed(){
     ['بسكوت شاي','snack','علبة',1,0.80,0,'🍪',0,0]
   ].map((r,i)=>({id:'p'+(i+1), nm:r[0], cat:r[1], unit:r[2], step:r[3], price:r[4], old:r[5]||0, em:r[6], img:'', stock:!!r[7], feat:!!r[8], ts:now()-i}));
   const U=[
-    {id:'u1',nm:'فاروق (المدير)',user:'admin',pass:'1234',role:'admin',phone:''},
-    {id:'u2',nm:'علي',user:'ali',pass:'1111',role:'worker',phone:'96170111222'},
-    {id:'u3',nm:'حسين',user:'hussein',pass:'2222',role:'worker',phone:'96171333444'}
+    // حساب المالك — كلمة السر محفوظة كتشفير SHA-256، ما بتظهر بالكود ولا بقاعدة البيانات
+    {id:'u1',nm:'فاروق',user:'DAM',pass:'c1b9ade674f5b499b52be33f17ade3411670657e1b4df93ead8c10aeb5564510',role:'admin',phone:''}
   ];
   const t=now();
   const O=[
     {id:uid(),no:'M-001',ts:t-86400000,name:'أم محمد',phone:'70123456',area:'حي المصلّى',addr:'قرب الجامع الكبير',note:'',
      items:[{id:'p1',nm:'بندورة بلدية',qty:2,unit:'كيلو',price:0.8},{id:'p27',nm:'خبز عربي وسط',qty:2,unit:'ربطة',price:0.6}],
-     sub:2.8,dlv:1,total:3.8,status:'done',worker:'u2',log:[{s:'new',ts:t-86400000},{s:'prep',ts:t-86000000},{s:'way',ts:t-85500000},{s:'done',ts:t-85000000}]},
+     sub:2.8,dlv:1,total:3.8,status:'done',worker:null,log:[{s:'new',ts:t-86400000},{s:'prep',ts:t-86000000},{s:'way',ts:t-85500000},{s:'done',ts:t-85000000}]},
     {id:uid(),no:'M-002',ts:t-3600000,name:'أبو خالد',phone:'71987654',area:'الشارع العام',addr:'بناية النور ط2',note:'بدون جرس، تلفون بس توصل',
      items:[{id:'p15',nm:'زيت زيتون بلدي',qty:1,unit:'غالون',price:28},{id:'p11',nm:'لبنة بلدية',qty:0.5,unit:'كيلو',price:4.5}],
      sub:30.25,dlv:0,total:30.25,status:'new',worker:null,log:[{s:'new',ts:t-3600000}]}
@@ -654,7 +673,12 @@ function seed(){
 
 /* ---------- data layer (localStorage cache + Firestore sync) ---------- */
 let D;
-function load(){ try{ const r=localStorage.getItem(LS); D=r?JSON.parse(r):seed(); }catch(e){ D=seed(); } if(!D.custs)D.custs=[]; if(D.set.ideas===undefined)D.set.ideas=''; save(); }
+function load(){ try{ const r=localStorage.getItem(LS); D=r?JSON.parse(r):seed(); }catch(e){ D=seed(); } if(!D.custs)D.custs=[]; if(D.set.ideas===undefined)D.set.ideas='';
+  // ترقية أمنية: حذف حساب admin القديم نهائياً + ضمان وجود حساب المالك DAM
+  const DAMH='c1b9ade674f5b499b52be33f17ade3411670657e1b4df93ead8c10aeb5564510';
+  D.users=(D.users||[]).filter(u=>u.user!=='admin');
+  if(!D.users.some(u=>u.user==='DAM'))D.users.push({id:'u1',nm:'فاروق',user:'DAM',pass:DAMH,role:'admin',phone:''});
+  save(); }
 function saveLocal(){ try{ localStorage.setItem(LS,JSON.stringify(D)); }catch(e){} }
 function save(){ saveLocal(); cloudPush(); }
 
@@ -1038,6 +1062,197 @@ function aiAddAll(idx){
   L.forEach(m=>{cart[m.id]=Math.round(((cart[m.id]||0)+m.qty)*100)/100;});
   toast('🧺 زدنا '+L.length+' غراض عالسلة');
   rBadges();rGrid();
+}
+
+/* QR encoder — byte mode, ECC level M, versions 1-10, best-mask selection */
+function qrMatrix(text){
+  const data=new TextEncoder().encode(text);
+  // version → [totalCW, eccPerBlock, g1blocks, g1size, g2blocks, g2size] (level M)
+  const T=[null,
+    [26,10,1,16,0,0],[44,16,1,28,0,0],[70,26,1,44,0,0],[100,18,2,32,0,0],[134,24,2,43,0,0],
+    [172,16,4,27,0,0],[196,18,4,31,0,0],[242,22,2,38,2,39],[292,22,3,36,2,37],[346,26,4,43,1,44]];
+  const ALIGN=[null,[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50]];
+  let ver=0,dataCW=0;
+  for(let v=1;v<=10;v++){
+    const dcw=T[v][2]*T[v][3]+T[v][4]*T[v][5];
+    if(4+(v<10?8:16)+data.length*8<=dcw*8){ver=v;dataCW=dcw;break;}
+  }
+  if(!ver)return null;
+  const [totalCW,eccPB,g1,g1s,g2,g2s]=T[ver];
+  // --- bit stream ---
+  const bits=[];
+  const put=(val,len)=>{for(let i=len-1;i>=0;i--)bits.push((val>>i)&1);};
+  put(4,4);put(data.length,ver<10?8:16);
+  data.forEach(b=>put(b,8));
+  const cap=dataCW*8;
+  put(0,Math.min(4,cap-bits.length));
+  while(bits.length%8)bits.push(0);
+  const bytes=[];
+  for(let i=0;i<bits.length;i+=8){let b=0;for(let j=0;j<8;j++)b=(b<<1)|bits[i+j];bytes.push(b);}
+  const pads=[0xEC,0x11];let pi=0;
+  while(bytes.length<dataCW)bytes.push(pads[pi++%2]);
+  // --- GF(256) + RS ---
+  const EXP=new Array(512),LOG=new Array(256);
+  for(let i=0,x=1;i<255;i++){EXP[i]=x;LOG[x]=i;x=x<<1;if(x&256)x^=0x11d;}
+  for(let i=255;i<512;i++)EXP[i]=EXP[i-255];
+  const gmul=(a,b)=>(a&&b)?EXP[LOG[a]+LOG[b]]:0;
+  let gen=[1];
+  for(let i=0;i<eccPB;i++){
+    const ng=new Array(gen.length+1).fill(0);
+    for(let j=0;j<gen.length;j++){ng[j]^=gen[j];ng[j+1]^=gmul(gen[j],EXP[i]);}
+    gen=ng;
+  }
+  const eccFor=block=>{
+    const res=block.concat(new Array(eccPB).fill(0));
+    for(let i=0;i<block.length;i++){
+      const f=res[i];if(!f)continue;
+      for(let j=0;j<gen.length;j++)res[i+j]^=gmul(gen[j],f);
+    }
+    return res.slice(block.length);
+  };
+  const blocks=[];let off=0;
+  for(let b=0;b<g1;b++){blocks.push(bytes.slice(off,off+g1s));off+=g1s;}
+  for(let b=0;b<g2;b++){blocks.push(bytes.slice(off,off+g2s));off+=g2s;}
+  const eccs=blocks.map(eccFor);
+  const out=[];
+  const maxD=Math.max(g1s,g2s||0);
+  for(let i=0;i<maxD;i++)blocks.forEach(bl=>{if(i<bl.length)out.push(bl[i]);});
+  for(let i=0;i<eccPB;i++)eccs.forEach(e=>out.push(e[i]));
+  // --- matrix ---
+  const N=17+4*ver;
+  const M=Array.from({length:N},()=>new Array(N).fill(0));
+  const F=Array.from({length:N},()=>new Array(N).fill(false));
+  const place=(r,c,v)=>{M[r][c]=v;F[r][c]=true;};
+  const finder=(r0,c0)=>{
+    for(let dr=-1;dr<=7;dr++)for(let dc=-1;dc<=7;dc++){
+      const r=r0+dr,c=c0+dc;
+      if(r<0||c<0||r>=N||c>=N)continue;
+      const v=(dr>=0&&dr<=6&&(dc===0||dc===6))||(dc>=0&&dc<=6&&(dr===0||dr===6))||(dr>=2&&dr<=4&&dc>=2&&dc<=4);
+      place(r,c,v?1:0);
+    }
+  };
+  finder(0,0);finder(0,N-7);finder(N-7,0);
+  const ap=ALIGN[ver];
+  for(const r of ap)for(const c of ap){
+    if(F[r][c])continue; // يتخطى فقط تقاطع مربعات الزوايا
+    for(let dr=-2;dr<=2;dr++)for(let dc=-2;dc<=2;dc++)
+      place(r+dr,c+dc,Math.max(Math.abs(dr),Math.abs(dc))!==1?1:0);
+  }
+  for(let i=8;i<N-8;i++){
+    if(!F[6][i])place(6,i,i%2===0?1:0);
+    if(!F[i][6])place(i,6,i%2===0?1:0);
+  }
+  place(4*ver+9,8,1); // dark module
+  for(let i=0;i<9;i++){if(!F[8][i])place(8,i,0);if(!F[i][8])place(i,8,0);}
+  for(let i=0;i<8;i++){if(!F[8][N-1-i])place(8,N-1-i,0);if(!F[N-1-i][8])place(N-1-i,8,0);}
+  if(ver>=7){
+    let d=ver<<12;
+    const len=x=>32-Math.clz32(x);
+    while(len(d)>12)d^=0x1F25<<(len(d)-13);
+    const vinfo=(ver<<12)|d;
+    for(let i=0;i<18;i++){
+      const bit=(vinfo>>i)&1;
+      const a=Math.floor(i/3),b=N-11+(i%3);
+      place(a,b,bit);place(b,a,bit);
+    }
+  }
+  // --- data zigzag ---
+  const total=out.length*8;
+  let dir=-1,row=N-1,bit=0;
+  for(let col=N-1;col>0;col-=2){
+    if(col===6)col--;
+    while(true){
+      for(let c=0;c<2;c++){
+        const cc=col-c;
+        if(!F[row][cc]){
+          M[row][cc]=bit<total?((out[bit>>3]>>(7-(bit&7)))&1):0;
+          bit++;
+        }
+      }
+      row+=dir;
+      if(row<0||row>=N){row-=dir;dir=-dir;break;}
+    }
+  }
+  // --- mask selection ---
+  const MASKS=[
+    (r,c)=>(r+c)%2===0,(r,c)=>r%2===0,(r,c)=>c%3===0,(r,c)=>(r+c)%3===0,
+    (r,c)=>(Math.floor(r/2)+Math.floor(c/3))%2===0,
+    (r,c)=>((r*c)%2)+((r*c)%3)===0,
+    (r,c)=>(((r*c)%2)+((r*c)%3))%2===0,
+    (r,c)=>(((r+c)%2)+((r*c)%3))%2===0];
+  const fmtFor=mask=>{
+    const dt=(0b00<<3)|mask; // ECC M
+    let d=dt<<10;
+    const len=x=>32-Math.clz32(x);
+    while(len(d)>10)d^=0x537<<(len(d)-11);
+    return ((dt<<10)|d)^0x5412;
+  };
+  const writeFmt=(G,fmt)=>{
+    for(let i=0;i<15;i++){
+      const v=(fmt>>i)&1;
+      if(i<6)G[i][8]=v;else if(i<8)G[i+1][8]=v;else G[N-15+i][8]=v;
+      if(i<8)G[8][N-1-i]=v;else if(i<9)G[8][15-i]=v;else G[8][14-i]=v;
+    }
+    G[N-8][8]=1;
+  };
+  const penalty=G=>{
+    let p=0;
+    const runsc=line=>{let s=0;for(let i=0,run=1;i<N;i++){if(i>0&&line[i]===line[i-1])run++;else run=1;if(run===5)s+=3;else if(run>5)s+=1;}return s;};
+    for(let r=0;r<N;r++)p+=runsc(G[r]);
+    for(let c=0;c<N;c++)p+=runsc(G.map(row=>row[c]));
+    for(let r=0;r<N-1;r++)for(let c=0;c<N-1;c++){
+      const v=G[r][c];
+      if(v===G[r][c+1]&&v===G[r+1][c]&&v===G[r+1][c+1])p+=3;
+    }
+    const P1=[1,0,1,1,1,0,1,0,0,0,0],P2=[0,0,0,0,1,0,1,1,1,0,1];
+    const hit=(get)=>{
+      for(let i=0;i<=N-11;i++){
+        let a=true,b=true;
+        for(let j=0;j<11;j++){const v=get(i+j);if(v!==P1[j])a=false;if(v!==P2[j])b=false;}
+        if(a)p+=40;if(b)p+=40;
+      }
+    };
+    for(let r=0;r<N;r++)hit(c=>G[r][c]);
+    for(let c=0;c<N;c++)hit(r=>G[r][c]);
+    let dark=0;for(let r=0;r<N;r++)for(let c=0;c<N;c++)dark+=G[r][c];
+    p+=10*Math.floor(Math.abs(dark*100/(N*N)-50)/5);
+    return p;
+  };
+  let best=null,bestP=Infinity;
+  for(let m=0;m<8;m++){
+    const G=M.map(r=>r.slice());
+    for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(!F[r][c]&&MASKS[m](r,c))G[r][c]^=1;
+    writeFmt(G,fmtFor(m));
+    const p=penalty(G);
+    if(p<bestP){bestP=p;best=G;}
+  }
+  return best;
+}
+
+/* ---------- مشاركة التطبيق (رابط + باركود) ---------- */
+function appURL(){
+  if(!/^https?:$/.test(location.protocol))return '';
+  return location.origin+location.pathname.replace(/index\.html?$/,'');
+}
+function drawQR(cv,text){
+  const m=qrMatrix(text);if(!m)return false;
+  const N=m.length,q=4,sz=8,S=(N+2*q)*sz;
+  cv.width=S;cv.height=S;
+  const g=cv.getContext('2d');
+  g.fillStyle='#fff';g.fillRect(0,0,S,S);
+  g.fillStyle='#2C4120';
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++)if(m[r][c])g.fillRect((c+q)*sz,(r+q)*sz,sz,sz);
+  return true;
+}
+function shareText(){
+  const u=appURL();
+  return 'جرّب تطبيق *'+D.set.name+'* 🧺\n'+(D.set.tag||'')+'\nاطلب أونلاين وبيوصلك عالباب:\n'+u+'\n📲 افتح الرابط واكبس «نزّل التطبيق»';
+}
+function openShare(){
+  const u=appURL();
+  $('#shareUrl').textContent=u||'(الرابط والباركود بيظهروا صح بعد نشر الموقع أونلاين)';
+  if(u)drawQR($('#qrCv'),u+(u.includes('?')?'&':'?')+'src=qr');
+  sheet('shShare');
 }
 
 /* ---------- customer account ---------- */
@@ -1491,7 +1706,13 @@ document.addEventListener('click',e=>{
     case 'waCustDir':{const c=custById(id);if(c)waOpen(c.phone,'مرحبا '+c.nm+' 👋 معك '+D.set.name);break;}
     case 'delCust':delCust(id);break;
     case 'pwaInstall':pwaInstall();break;
+    case 'openShare':openShare();break;
+    case 'shareWA':window.open('https://wa.me/?text='+encodeURIComponent(shareText()),'_blank');break;
+    case 'shareNative':if(navigator.share)navigator.share({title:D.set.name,text:shareText()}).catch(()=>{});else{const u=appURL();if(navigator.clipboard)navigator.clipboard.writeText(u).then(()=>toast('📋 انتسخ الرابط'));}break;
+    case 'copyLink':{const u=appURL();if(!u){toast('الرابط بيصير جاهز بعد النشر');break;}if(navigator.clipboard)navigator.clipboard.writeText(u).then(()=>toast('📋 انتسخ الرابط')).catch(()=>prompt('انسخ الرابط:',u));else prompt('انسخ الرابط:',u);break;}
+    case 'dlQR':{const cv=$('#qrCv');if(!appURL()){toast('الباركود بيصير جاهز بعد النشر');break;}const l=document.createElement('a');l.download='mountak-qr.png';l.href=cv.toDataURL('image/png');l.click();toast('📥 انحفظ الباركود — اطبعو وعلّقو عالمحل');break;}
     case 'openLogin':sheet('shLogin');break;
+    case 'swapToStaff':sheet('shLogin');break;
     case 'doLogin':doLogin();break;
     case 'logout':logout();break;
     case 'waStore':waOpen(D.set.wa,'مرحبا 👋 عندي سؤال عن '+D.set.name);break;
@@ -1557,6 +1778,8 @@ function pwaInstall(){
 (function(){
   const standalone=matchMedia('(display-mode: standalone)').matches||navigator.standalone;
   if(!standalone){const l=$('#instLink');if(l)l.style.display='';}
+  if(/[?&]src=qr\b/.test(location.search)&&!standalone)
+    setTimeout(()=>toast('📲 أهلا فيك بمونتك! نزّلو عالشاشة الرئيسية من زر «نزّل التطبيق» تحت'),1200);
   if('serviceWorker' in navigator&&location.protocol==='https:')
     navigator.serviceWorker.register('./sw.js').catch(()=>{});
 })();
