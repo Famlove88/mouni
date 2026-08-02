@@ -434,7 +434,16 @@ footer button{border:0; background:transparent; color:var(--olv); font-weight:80
   <div class="sh-b">
     <div class="fld"><label>اسم المستخدم</label><input id="lgU" autocapitalize="none" autocomplete="username" spellcheck="false" autocomplete="off"></div>
     <div class="fld"><label>كلمة السر</label><input id="lgP" type="password"></div>
-    <div class="note">الدخول بـ<b>اسم المستخدم</b> الخاص بفريق المحل (مش إيميل) — الإيميل محلو بس بكرت ☁️ السحابة بالإعدادات.</div>
+    <div class="note">الدخول بـ<b>اسم المستخدم</b> الخاص بفريق المحل (مش إيميل).</div>
+    <div id="lgLink" style="display:none">
+      <div class="note" style="margin-top:10px">📵 <b>هالجهاز مش مربوط بالمحل بعد.</b> أول مرة بس: حط بيانات الربط يلي بيعطيك ياها صاحب المحل، وبعدها بتفوت باسمك عادي.</div>
+      <div class="f2">
+        <div class="fld"><label>إيميل الربط</label><input id="lgE" dir="ltr" autocapitalize="none" spellcheck="false" placeholder="staff@…"></div>
+        <div class="fld"><label>كلمة سر الربط</label><input id="lgQ" type="password" dir="ltr"></div>
+      </div>
+      <button class="btn wa blk" data-a="lgLinkGo">🔗 اربط الجهاز</button>
+    </div>
+    <div id="lgLinked" class="hint" style="display:none;margin-top:8px">☁️ الجهاز مربوط بالمحل ✅</div>
   </div>
   <div class="sh-f"><button class="btn blk" data-a="doLogin">دخول</button></div>
 </div>
@@ -521,7 +530,7 @@ footer button{border:0; background:transparent; color:var(--olv); font-weight:80
       <div class="fld" id="pfStepW"><label>أقل كمية (كيلو)</label>
         <select id="pfStep"><option value="0.25">ربع كيلو</option><option value="0.5" selected>نص كيلو</option><option value="1">كيلو</option></select>
       </div>
-      <div class="fld"><label>السعر بالدولار *</label><input id="pfPrice" type="number" step="0.05" min="0" inputmode="decimal" dir="ltr"></div>
+      <div class="fld"><label>سعر البيع بالدولار *</label><input id="pfPrice" type="number" step="0.05" min="0" inputmode="decimal" dir="ltr"></div>
     </div>
     <div class="f2">
       <div class="fld"><label>السعر القديم (للعرض 🔥)</label><input id="pfOld" type="number" step="0.05" min="0" inputmode="decimal" dir="ltr" placeholder="اتركه فاضي إذا ما في عرض"></div>
@@ -530,6 +539,8 @@ footer button{border:0; background:transparent; color:var(--olv); font-weight:80
     <div class="fld"><label>رابط صورة (اختياري — بياخد محل الإيموجي)</label><input id="pfImg" dir="ltr" placeholder="https://…"></div>
     <div class="f2">
       <div class="fld"><label>الحالة</label><select id="pfStock"><option value="1">موجود ✅</option><option value="0">مقطوع ⛔</option></select></div>
+      <div class="fld" id="pfCostW"><label>سعر الشراء $ (سرّي — للمدير بس، لحساب الأرباح)</label><input id="pfCost" type="number" step="0.05" min="0" inputmode="decimal" dir="ltr"></div>
+      <div class="fld"><label>الكمية بالمخزون (اختياري — بتنقص لحالها لما يوصل الطلب)</label><input id="pfStq" type="number" step="0.25" min="0" inputmode="decimal" dir="ltr" placeholder="اتركها فاضية إذا ما بدك تتبّع الكمية"></div>
       <div class="fld"><label>مميّز ⭐</label><select id="pfFeat"><option value="0">لا</option><option value="1">نعم — بيطلع أول</option></select></div>
     </div>
   </div>
@@ -667,17 +678,23 @@ function seed(){
   return {
     set:{name:'مونتك', tag:'غراض بيتك واصلين لعندك 🛵', wa:'96103123456', rate:89500, dlv:1, freeAbove:20, minOrder:3,
          open:true, hours:'كل يوم من ٨ الصبح لـ ١٠ المسا', aiKey:'', ideas:''},
-    cats:C, prods:P, users:U, orders:O, custs:[], seq:3
+    cats:C, prods:P, users:U, orders:O, custs:[], costs:[], seq:3
   };
 }
 
 /* ---------- data layer (localStorage cache + Firestore sync) ---------- */
 let D;
-function load(){ try{ const r=localStorage.getItem(LS); D=r?JSON.parse(r):seed(); }catch(e){ D=seed(); } if(!D.custs)D.custs=[]; if(D.set.ideas===undefined)D.set.ideas='';
+function load(){ try{ const r=localStorage.getItem(LS); D=r?JSON.parse(r):seed(); }catch(e){ D=seed(); } if(!D.custs)D.custs=[]; if(!D.costs)D.costs=[]; if(D.set.ideas===undefined)D.set.ideas='';
   D.users=D.users||[];ensureOwner();
   save(); }
 // حساب المالك: يُعاد إصلاحه تلقائياً محلياً وعلى السحابة إذا لقينا لائحة قديمة
 const DAMH='c1b9ade674f5b499b52be33f17ade3411670657e1b4df93ead8c10aeb5564510';
+const costOf=id=>{const x=(D.costs||[]).find(c=>c.id===id);return x?x.c:0;};
+function setCost(id,v){
+  const i=(D.costs||[]).findIndex(c=>c.id===id);
+  if(!(v>0)){if(i>-1)D.costs.splice(i,1);return;}
+  if(i>-1)D.costs[i].c=v;else D.costs.push({id,c:v});
+}
 function ensureOwner(){
   let ch=false;
   if((D.users||[]).some(u=>u.user==='admin')){D.users=D.users.filter(u=>u.user!=='admin');ch=true;}
@@ -691,9 +708,9 @@ function save(){ saveLocal(); cloudPush(); }
 const FB_CFG={apiKey:"AIzaSyAuumq9cF5-OS_KH5r1TsiporPHBSiYPLA",authDomain:"mouni-eba45.firebaseapp.com",
   projectId:"mouni-eba45",storageBucket:"mouni-eba45.firebasestorage.app",
   messagingSenderId:"776432305618",appId:"1:776432305618:web:676673a2ba435874e4340b"};
-const COLS=['prods','cats','users','custs','orders'];
+const COLS=['prods','cats','users','custs','orders','costs'];
 let fdb=null,fAuth=null,applying=false,firstSnap={},cloudCounts={};
-let shadow={prods:{},cats:{},users:{},custs:{},orders:{},_set:'',_seq:0};
+let shadow={prods:{},cats:{},users:{},custs:{},orders:{},costs:{},_set:'',_seq:0};
 function shadowFromLocal(){COLS.forEach(c=>{shadow[c]={};(D[c]||[]).forEach(r=>shadow[c][r.id]=JSON.stringify(r));});shadow._set=JSON.stringify(D.set);shadow._seq=D.seq;}
 function fbInit(){
   if(!(window.firebase&&firebase.initializeApp))return; // بالمعاينة أو أوفلاين: بتضل نسخة محلية
@@ -702,13 +719,14 @@ function fbInit(){
     fdb=firebase.firestore();fAuth=firebase.auth();
     try{fdb.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(e){}
     shadowFromLocal();
-    fAuth.onAuthStateChanged(()=>{rCloudCard();cloudPush();});
+    fAuth.onAuthStateChanged(u=>{rCloudCard();rLgLink();cloudPush();if(u&&fdb){listenCol('users');listenCol('costs');}});
     startSync();
   }catch(e){fdb=null;fAuth=null;}
 }
-function startSync(){
-  COLS.forEach(col=>{
-    fdb.collection(col).onSnapshot(snap=>{
+const subs={};
+function listenCol(col){
+  if(subs[col]){try{subs[col]();}catch(e){}}
+  subs[col]=fdb.collection(col).onSnapshot(snap=>{
       applying=true;cloudCounts[col]=snap.size;
       if(!firstSnap[col]){
         firstSnap[col]=1;
@@ -737,8 +755,11 @@ function startSync(){
       if(col==='users')fixOwner=ensureOwner();
       saveLocal();rAll();applying=false;
       if(fixOwner)save(); // يمسح admin القديم من السحابة وبيثبّت DAM
-    },()=>{});
-  });
+      if(col==='users')finishPendingLogin();
+    },()=>{ /* قراءة محمية بلا ربط — منعيد الاشتراك بعد الربط */ });
+}
+function startSync(){
+  COLS.forEach(listenCol);
   fdb.collection('meta').doc('set').onSnapshot(d=>{
     if(!d.exists)return;
     applying=true;D.set=Object.assign({},D.set,d.data());shadow._set=JSON.stringify(D.set);
@@ -791,6 +812,36 @@ async function fbPushAll(){
     await b.commit();shadowFromLocal();
     toast('⬆️ تمّ رفع البيانات عالسحابة ✅');rCloudCard();
   }catch(e){toast('ما زبط الرفع — تأكد إنك ناشر الـ Rules');}
+}
+let pendingLogin=null;
+async function finishPendingLogin(){
+  if(!pendingLogin||sess)return;
+  const{u,p}=pendingLogin;
+  const f=D.users.find(x=>x.user===u);
+  if(!f)return;
+  pendingLogin=null;
+  const ok=isHash(f.pass)?f.pass===await sha(p):f.pass===p;
+  if(!ok)return toast('الاسم أو كلمة السر غلط — جرّب من جديد');
+  if(!isHash(f.pass)){f.pass=await sha(p);save();}
+  sess=f;$('#lgU').value='';$('#lgP').value='';
+  document.body.classList.add('mStaff');
+  closeSheets();A.tab=f.role==='editor'?'prods':'ords';rStaff();
+  toast('أهلا '+f.nm+' 👋 صار جهازك جاهز');
+}
+function rLgLink(){
+  const box=$('#lgLink'),okl=$('#lgLinked');
+  if(!box)return;
+  if(!fdb){box.style.display='none';okl.style.display='none';return;}
+  const u=fAuth&&fAuth.currentUser;
+  box.style.display=(!u&&pendingLogin)?'':'none';
+  okl.style.display=u?'':'none';
+}
+async function lgLinkGo(){
+  if(!fAuth)return toast('الربط بيشتغل بعد نشر الموقع أونلاين');
+  const e=$('#lgE').value.trim(),p=$('#lgQ').value;
+  if(!e||!p)return toast('عبّي إيميل وكلمة سر الربط');
+  try{await fAuth.signInWithEmailAndPassword(e,p);$('#lgQ').value='';toast('☁️ تمّ ربط الجهاز'+(pendingLogin?' — لحظة، عم كمّل دخولك…':''));rLgLink();}
+  catch(err){toast('ما زبط الربط — راجع البيانات مع صاحب المحل');}
 }
 function rCloudCard(){
   const st=$('#cloudSt');if(!st)return;
@@ -1367,7 +1418,15 @@ async function doLogin(){
   const u=$('#lgU').value.trim(),p=$('#lgP').value;
   const f=D.users.find(x=>x.user===u);
   const ok=f&&(isHash(f.pass)?f.pass===await sha(p):f.pass===p);
-  if(!ok)return toast('الاسم أو كلمة السر غلط');
+  if(!ok){
+    if(fdb&&!(fAuth&&fAuth.currentUser)){
+      pendingLogin={u,p};
+      $('#lgLink').style.display='';
+      return toast('👋 أهلا! خطوة وحدة بعد منشان الأمان: اربط الجهاز مرة وحدة وبيكمّل دخولك لحالو');
+    }
+    return toast('الاسم أو كلمة السر غلط');
+  }
+  pendingLogin=null;
   if(!isHash(f.pass)){f.pass=await sha(p);save();}
   sess=f;$('#lgU').value='';$('#lgP').value='';
   document.body.classList.add('mStaff');
@@ -1419,7 +1478,7 @@ function rPanel(){
     +L.map(p=>`<div class="row">
       <div class="em" style="width:40px;height:40px;border-radius:9px;background:var(--soft);display:flex;align-items:center;justify-content:center;font-size:21px">${p.img?'🖼️':esc(p.em)}</div>
       <div class="mid"><div class="t1">${esc(p.nm)} ${p.feat?'⭐':''} ${p.old>p.price?'🔥':''}</div>
-      <div class="t2 num">${f$(p.price)} / ${esc(unitName(p))} · ${esc((cat(p.cat)||{}).nm||'')}</div></div>
+      <div class="t2 num">${f$(p.price)} / ${esc(unitName(p))} · ${esc((cat(p.cat)||{}).nm||'')}${p.stq!=null?` · <b style="color:${p.stq<=3?'var(--pom)':'inherit'}">📦 ${fQty(p.stq)}</b>`:''}</div></div>
       <div class="acts">
         <button class="togg ${p.stock?'on':''}" data-a="tglStock" data-id="${p.id}" title="موجود/مقطوع"></button>
         <button class="btn gh sm" data-a="editProd" data-id="${p.id}">تعديل</button>
@@ -1454,9 +1513,18 @@ function rPanel(){
   }
   else if(A.tab==='reps'){
     const t0=new Date();t0.setHours(0,0,0,0);
+    const m0=new Date();m0.setDate(1);m0.setHours(0,0,0,0);
+    const y0=new Date();y0.setMonth(0,1);y0.setHours(0,0,0,0);
     const today=D.orders.filter(o=>o.ts>=t0.getTime()&&o.status!=='cancel');
     const active=D.orders.filter(o=>['new','prep','way'].includes(o.status)).length;
     const sales=today.reduce((s,o)=>s+o.total,0);
+    const profit=from=>D.orders.filter(o=>o.status==='done'&&o.ts>=from)
+      .reduce((s,o)=>s+o.items.reduce((t,it)=>t+(it.price-costOf(it.id))*it.qty,0),0);
+    const pd=profit(t0.getTime()),pm=profit(m0.getTime()),py=profit(y0.getTime());
+    const noCost=D.prods.filter(p=>!costOf(p.id)).length;
+    const inv=D.prods.filter(p=>p.stq!=null);
+    const invVal=inv.reduce((s,p)=>s+p.stq*(costOf(p.id)||0),0);
+    const low=inv.filter(p=>p.stq<=3);
     const qmap={};D.orders.filter(o=>o.status!=='cancel').forEach(o=>o.items.forEach(i=>{qmap[i.nm]=(qmap[i.nm]||0)+i.qty;}));
     const top=Object.entries(qmap).sort((a,b)=>b[1]-a[1]).slice(0,5);
     const mx=top.length?top[0][1]:1;
@@ -1466,6 +1534,19 @@ function rPanel(){
       <div class="stat"><div class="v num">${active}</div><div class="l">قيد التنفيذ</div></div>
       <div class="stat"><div class="v num">${D.orders.length}</div><div class="l">كل الطلبات</div></div>
     </div>
+    <div class="ph"><h3>💰 صافي الأرباح <span class="mini">(من الطلبات الواصلة ✅)</span></h3></div>
+    <div class="statgrid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="stat"><div class="v num">${f$(pd)}</div><div class="l">اليوم</div></div>
+      <div class="stat"><div class="v num">${f$(pm)}</div><div class="l">هالشهر</div></div>
+      <div class="stat"><div class="v num">${f$(py)}</div><div class="l">هالسنة</div></div>
+    </div>
+    ${noCost?`<p class="hint">💡 في ${noCost} منتج بلا سعر شراء — حطلّن سعر الشراء من "تعديل" حتى يطلع الربح مظبوط.</p>`:''}
+    <div class="ph"><h3>📦 المخزون <span class="mini num">(قيمة الشراء: ${f$(invVal)})</span></h3></div>
+    ${low.length?`<div class="note">🔴 شارف يخلص: ${low.map(p=>esc(p.nm)+' ('+fQty(p.stq)+')').join('، ')}</div>`:''}
+    ${inv.length?inv.slice().sort((a,b)=>a.stq-b.stq).map(p=>`<div class="row" style="justify-content:space-between">
+      <div><b>${esc(p.em)} ${esc(p.nm)}</b><div class="mini num">${fQty(p.stq)} ${esc(unitName(p))} × ${f$(costOf(p.id)||0)} شراء</div></div>
+      <b class="num" style="${p.stq<=3?'color:var(--pom)':''}">${f$(p.stq*(costOf(p.id)||0))}</b>
+    </div>`).join(''):`<p class="hint">لسا ما حدّدت كميات مخزون — من تعديل أي منتج، عبّي "الكمية بالمخزون".</p>`}
     <div class="ph"><h3>🏆 الأكثر طلباً</h3></div>`
     +(top.length?top.map(t=>`<div class="row" style="flex-direction:column;align-items:stretch;gap:4px">
       <div style="display:flex;justify-content:space-between"><b>${esc(t[0])}</b><span class="mini num">${fQty(t[1])}</span></div>
@@ -1545,13 +1626,23 @@ function openOrder(id){
   const w=o.worker?user(o.worker):null;
   $('#ordFoot').innerHTML=`
     <button class="btn wa sm" data-a="waCust" data-id="${o.id}">💬 الزبون</button>
+    <button class="btn sm" data-a="waInvoice" data-id="${o.id}">🧾 فاتورة</button>
     ${admin&&w&&w.phone?`<button class="btn sm" data-a="waWorker" data-id="${o.id}">📤 للموصّل</button>`:''}
     <button class="btn gh sm" data-a="printOrd" data-id="${o.id}">🖨️ طباعة</button>`;
   sheet('shOrder');
 }
 function stSet(id,s){
   const o=D.orders.find(x=>x.id===id);if(!o||o.status===s)return;
-  o.status=s;o.log.push({s,ts:now()});save();
+  o.status=s;o.log.push({s,ts:now()});
+  if(s==='done'&&!o.dec){
+    o.dec=1;
+    o.items.forEach(it=>{
+      const p=prod(it.id);if(!p||p.stq==null)return;
+      p.stq=Math.max(0,Math.round((p.stq-it.qty)*100)/100);
+      if(p.stq===0&&p.stock){p.stock=false;toast('⚠️ خلص مخزون: '+p.nm);}
+    });
+  }
+  save();
   toast('صارت الحالة: '+STL[s]);
   openOrder(id);rPanel();
 }
@@ -1568,6 +1659,27 @@ function waCust(id){
     way:'طلبك '+o.no+' طلع مع الموصّل 🛵 عالطريق لعندك!',done:'وصلك طلبك '+o.no+' ✅ صحتين وهنا 🙏',
     cancel:'للأسف انلغى طلبك '+o.no+' — تواصل معنا للتفاصيل'};
   waOpen(o.phone,'مرحبا '+o.name+' 👋\n'+M[o.status]+'\n— '+D.set.name);
+}
+function invoiceText(o){
+  const dt=new Date(o.ts);
+  const L=[];
+  L.push('🧾 *فاتورة '+D.set.name+'*');
+  L.push('رقم: '+o.no+' — '+fT(o.ts));
+  L.push('الزبون: '+o.name);
+  L.push('─────────────');
+  o.items.forEach(it=>L.push('• '+it.nm+' ×'+fQty(it.qty)+' '+it.unit+' — '+f$(it.qty*it.price)));
+  L.push('─────────────');
+  L.push('المجموع: '+f$(o.sub));
+  L.push('التوصيل: '+(o.dlv?f$(o.dlv):'مجاني 🎁'));
+  L.push('*الإجمالي: '+f$(o.total)+'*  (≈ '+fLL(o.total)+')');
+  L.push('');
+  L.push('شكراً لتعاملكم معنا 🧡');
+  L.push('— '+D.set.name+' · '+(D.set.tag||''));
+  return L.join('\n');
+}
+function waInvoice(id){
+  const o=D.orders.find(x=>x.id===id);if(!o)return;
+  waOpen(o.phone,invoiceText(o));
 }
 function waWorker(id){
   const o=D.orders.find(x=>x.id===id);const w=o&&o.worker?user(o.worker):null;
@@ -1597,6 +1709,9 @@ function prodForm(id){
   $('#pfImg').value=p?p.img:'';
   $('#pfStock').value=p?(p.stock?'1':'0'):'1';
   $('#pfFeat').value=p?(p.feat?'1':'0'):'0';
+  $('#pfCostW').style.display=sess&&sess.role==='admin'?'':'none';
+  $('#pfCost').value=(sess&&sess.role==='admin'&&p&&costOf(p.id))?costOf(p.id):'';
+  $('#pfStq').value=(p&&p.stq!=null)?p.stq:'';
   $('#pfStepW').style.display=$('#pfUnit').value==='kg'?'':'none';
   $('#delProdBtn').style.display=p?'':'none';
   sheet('shProd');
@@ -1612,13 +1727,18 @@ function saveProd(){
     price, old:parseFloat($('#pfOld').value)||0,
     em:$('#pfEmoji').value.trim()||'🛒', img:$('#pfImg').value.trim(),
     stock:$('#pfStock').value==='1', feat:$('#pfFeat').value==='1'};
-  if(id){Object.assign(prod(id),obj);}else{D.prods.push({id:uid(),ts:now(),...obj});}
+  const sq=$('#pfStq').value.trim();
+  obj.stq=sq===''?null:Math.max(0,parseFloat(sq)||0);
+  if(obj.stq===0)obj.stock=false;
+  let pid=id;
+  if(id){Object.assign(prod(id),obj);}else{pid=uid();D.prods.push({id:pid,ts:now(),...obj});}
+  if(sess&&sess.role==='admin')setCost(pid,parseFloat($('#pfCost').value)||0);
   save();closeSheets();rPanel();toast('💾 انحفظ المنتج');
 }
 function delProd(){
   const id=$('#pfId').value;if(!id)return;
   if(!confirm('هل أنت متأكد من حذف هذا المنتج نهائياً؟'))return;
-  D.prods=D.prods.filter(p=>p.id!==id);save();closeSheets();rPanel();toast('🗑️ تمّ حذف المنتج');
+  D.prods=D.prods.filter(p=>p.id!==id);setCost(id,0);save();closeSheets();rPanel();toast('🗑️ تمّ حذف المنتج');
 }
 
 /* ---------- category CRUD ---------- */
@@ -1755,8 +1875,9 @@ document.addEventListener('click',e=>{
     case 'shareNative':if(navigator.share)navigator.share({title:D.set.name,text:shareText()}).catch(()=>{});else{const u=appURL();if(navigator.clipboard)navigator.clipboard.writeText(u).then(()=>toast('📋 انتسخ الرابط'));}break;
     case 'copyLink':{const u=appURL();if(!u){toast('الرابط بيصير جاهز بعد النشر');break;}if(navigator.clipboard)navigator.clipboard.writeText(u).then(()=>toast('📋 انتسخ الرابط')).catch(()=>prompt('انسخ الرابط:',u));else prompt('انسخ الرابط:',u);break;}
     case 'dlQR':{const cv=$('#qrCv');if(!appURL()){toast('الباركود بيصير جاهز بعد النشر');break;}const l=document.createElement('a');l.download='mountak-qr.png';l.href=cv.toDataURL('image/png');l.click();toast('📥 انحفظ الباركود — اطبعو وعلّقو عالمحل');break;}
-    case 'openLogin':sheet('shLogin');break;
-    case 'swapToStaff':sheet('shLogin');break;
+    case 'openLogin':sheet('shLogin');rLgLink();break;
+    case 'swapToStaff':sheet('shLogin');rLgLink();break;
+    case 'lgLinkGo':lgLinkGo();break;
     case 'doLogin':doLogin();break;
     case 'logout':logout();break;
     case 'waStore':waOpen(D.set.wa,'مرحبا 👋 عندي سؤال عن '+D.set.name);break;
@@ -1767,6 +1888,7 @@ document.addEventListener('click',e=>{
     case 'openOrder':openOrder(id);break;
     case 'stSet':stSet(id,t.dataset.s);break;
     case 'waCust':waCust(id);break;
+    case 'waInvoice':waInvoice(id);break;
     case 'waWorker':waWorker(id);break;
     case 'printOrd':printOrd(id);break;
     case 'addProd':prodForm(null);break;
