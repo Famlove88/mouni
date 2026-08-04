@@ -92,6 +92,13 @@ h1,h2,h3{margin:0; line-height:1.35}
 #instBn .ib-bt{display:flex; flex-direction:column; gap:6px; flex:none}
 #instBn .ibgo{border:0; background:var(--wheat); color:var(--olv-d); font-weight:900; font-family:inherit; padding:9px 16px; border-radius:11px; font-size:13px}
 #instBn .ib-later{border:0; background:none; color:rgba(255,255,255,.75); font-family:inherit; font-size:11.5px; text-decoration:underline}
+#lightbox{position:fixed; inset:0; z-index:96; background:rgba(24,30,16,.93); display:none; flex-direction:column; align-items:center; justify-content:center; gap:12px; padding:20px}
+#lightbox.on{display:flex}
+#lightbox img{max-width:94vw; max-height:74vh; border-radius:18px; box-shadow:0 20px 60px rgba(0,0,0,.5); animation:lbin .18s ease}
+@keyframes lbin{from{transform:scale(.86); opacity:0}to{transform:scale(1); opacity:1}}
+#lightbox .lb-nm{color:#fff; font-weight:800; font-size:15px; text-align:center}
+#lightbox .lb-x{position:absolute; top:calc(14px + env(safe-area-inset-top)); left:14px; width:40px; height:40px; border-radius:12px; border:0; background:rgba(255,255,255,.16); color:#fff; font-size:18px}
+.pimg[data-a]{cursor:zoom-in}
 .jar .nm{font-size:12px; font-weight:800; white-space:nowrap}
 .jar .ct{font-size:10.5px; color:var(--mut); font-weight:700}
 .jar.on{background:var(--olv); border-color:var(--olv-d); color:#fff; transform:translateY(-3px)}
@@ -536,10 +543,16 @@ footer button{border:0; background:transparent; color:var(--olv); font-weight:80
       <div class="fld"><label>الصنف *</label><select id="pfCat"></select></div>
       <div class="fld"><label>طريقة البيع *</label>
         <select id="pfUnit">
-          <option value="kg">بالكيلو ⚖️</option><option value="قطعة">قطعة</option><option value="ربطة">ربطة</option>
-          <option value="علبة">علبة</option><option value="كيس">كيس</option><option value="كرتونة">كرتونة</option>
-          <option value="قنينة">قنينة</option><option value="دزينة">دزينة</option><option value="غالون">غالون</option><option value="تنكة">تنكة</option>
+          <option value="kg">بالكيلو ⚖️ (ربع/نص/كيلو)</option>
+          <option value="نص كيلو">نص كيلو</option><option value="وقية">وقية (٢٠٠ غ)</option>
+          <option value="قطعة">قطعة</option><option value="ربطة">ربطة</option>
+          <option value="علبة">علبة</option><option value="كيس">كيس</option><option value="باكيت">باكيت</option><option value="ظرف">ظرف</option>
+          <option value="كرتونة">كرتونة</option><option value="طبق">طبق</option><option value="دزينة">دزينة</option>
+          <option value="قنينة">قنينة</option><option value="قارورة">قارورة</option><option value="غالون">غالون</option><option value="لتر">لتر</option>
+          <option value="تنكة">تنكة</option><option value="سطل">سطل</option><option value="شوال">شوال</option>
+          <option value="__c">وحدة تانية ✍️</option>
         </select>
+        <input id="pfUnitC" placeholder="اكتب الوحدة (مثلاً: صحن، درزن…)" style="display:none;margin-top:6px">
       </div>
     </div>
     <div class="f2">
@@ -632,6 +645,11 @@ footer button{border:0; background:transparent; color:var(--olv); font-weight:80
 </div>
 
 <div id="instBn"></div>
+<div id="lightbox" data-a="lbClose">
+  <button class="lb-x" data-a="lbClose">✕</button>
+  <img id="lbImg" alt="">
+  <div class="lb-nm" id="lbNm"></div>
+</div>
 <div class="toast" id="toast"></div>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
@@ -1006,7 +1024,7 @@ function rGrid(){
     const img=p.img?`<img src="${esc(p.img)}" alt="" loading="lazy">`:esc(p.em||'🛒');
     return `<div class="card ${p.stock?'':'out'}" data-pid="${p.id}">
       ${off?`<span class="boff">🔥 عرض</span>`:''}${p.feat?`<span class="bfeat">⭐</span>`:''}
-      <div class="pimg">${img}</div>
+      <div class="pimg"${p.img?` data-a="lbOpen" data-id="${p.id}"`:''}>${img}</div>
       <div class="pname">${esc(p.nm)}</div>
       <div class="prow"><span class="price num">${f$(p.price)}</span>${off?`<span class="old num">${f$(p.old)}</span>`:''}<span class="unitb">/ ${esc(unitName(p))}</span></div>
       <div class="ll num">≈ ${fLL(p.price)}</div>
@@ -1815,6 +1833,9 @@ function prodForm(id){
   $('#pfName').value=p?p.nm:'';
   $('#pfCat').value=p?p.cat:(V.cat!=='all'?V.cat:D.cats[0].id);
   $('#pfUnit').value=p?p.unit:'kg';
+  const uc=$('#pfUnitC');
+  if(p&&$('#pfUnit').value!==p.unit){$('#pfUnit').value='__c';uc.value=p.unit;}else uc.value='';
+  uc.style.display=$('#pfUnit').value==='__c'?'':'none';
   $('#pfStep').value=p?String(p.step):'0.5';
   $('#pfPrice').value=p?p.price:'';
   $('#pfOld').value=p&&p.old?p.old:'';
@@ -1836,7 +1857,8 @@ function saveProd(){
   const nm=$('#pfName').value.trim(), price=parseFloat($('#pfPrice').value);
   if(!nm)return toast('حط اسم المنتج');
   if(!(price>0))return toast('حط سعر مزبوط');
-  const unit=$('#pfUnit').value;
+  let unit=$('#pfUnit').value;
+  if(unit==='__c')unit=$('#pfUnitC').value.trim()||'قطعة';
   const obj={nm, cat:$('#pfCat').value, unit,
     step:unit==='kg'?parseFloat($('#pfStep').value)||0.5:1,
     price, old:parseFloat($('#pfOld').value)||0,
@@ -1987,6 +2009,8 @@ document.addEventListener('click',e=>{
     case 'waCustDir':{const c=custById(id);if(c)waOpen(c.phone,'مرحبا '+c.nm+' 👋 معك '+D.set.name);break;}
     case 'delCust':delCust(id);break;
     case 'pwaInstall':pwaInstall();break;
+    case 'lbOpen':{const pp=prod(id);if(pp&&pp.img){$('#lbImg').src=pp.img;$('#lbNm').textContent=pp.nm;$('#lightbox').classList.add('on');}break;}
+    case 'lbClose':$('#lightbox').classList.remove('on');break;
     case 'pfShoot':$('#pfCam').click();break;
     case 'pfPickG':$('#pfGal').click();break;
     case 'pfClrImg':pfPick='';$('#pfImg').value='';rPickTh('#pfTh','','',$('#pfEmoji').value);break;
@@ -2050,7 +2074,7 @@ document.addEventListener('input',e=>{
 document.addEventListener('change',e=>{
   const el=e.target;
   if(el.id==='sortSel'){V.sort=el.value;rGrid();}
-  else if(el.id==='pfUnit'){$('#pfStepW').style.display=el.value==='kg'?'':'none';}
+  else if(el.id==='pfUnit'){$('#pfStepW').style.display=el.value==='kg'?'':'none';$('#pfUnitC').style.display=el.value==='__c'?'':'none';}
   else if(el.id==='pfCam'||el.id==='pfGal'){if(el.files&&el.files[0])pickFile('pf',el.files[0]);el.value='';}
   else if(el.id==='cfCam'||el.id==='cfGal'){if(el.files&&el.files[0])pickFile('cf',el.files[0]);el.value='';}
   else if(el.dataset.assign){assign(el.dataset.assign,el.value);}
@@ -2059,7 +2083,7 @@ document.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&e.target.id==='aiIn')aiSend();
   if(e.key==='Enter'&&e.target.id==='trkQ')doTrack();
   if(e.key==='Enter'&&e.target.id==='ciPass')custLogin();
-  if(e.key==='Escape')closeSheets();
+  if(e.key==='Escape'){closeSheets();const lb=$('#lightbox');if(lb)lb.classList.remove('on');}
 });
 
 /* ---------- PWA (تثبيت التطبيق) ---------- */
