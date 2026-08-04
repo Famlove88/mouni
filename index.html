@@ -793,7 +793,14 @@ function listenCol(col){
         rAcctBtn();
       }
       let fixOwner=false;
-      if(col==='users')fixOwner=ensureOwner();
+      if(col==='users'){
+        fixOwner=ensureOwner();
+        if(sess){
+          const s2=user(sess.id);
+          if(s2)sess=s2;
+          else{sess=null;try{localStorage.removeItem(SSK);}catch(e){}document.body.classList.remove('mStaff');toast('انتهت صلاحية دخولك — حسابك تعدّل، فوت من جديد');}
+        }
+      }
       saveLocal();rAll();applying=false;
       if(fixOwner)save(); // يمسح admin القديم من السحابة وبيثبّت DAM
       if(col==='users')finishPendingLogin();
@@ -864,7 +871,8 @@ async function finishPendingLogin(){
   const ok=isHash(f.pass)?f.pass===await sha(p):f.pass===p;
   if(!ok)return toast('الاسم أو كلمة السر غلط — جرّب من جديد');
   if(!isHash(f.pass)){f.pass=await sha(p);save();}
-  sess=f;$('#lgU').value='';$('#lgP').value='';
+  sess=f;try{localStorage.setItem(SSK,f.id);}catch(e){}
+  $('#lgU').value='';$('#lgP').value='';
   document.body.classList.add('mStaff');
   closeSheets();A.tab=f.role==='editor'?'prods':'ords';rStaff();
   const bn=$('#instBn');if(bn)bn.style.display='none';
@@ -952,6 +960,17 @@ function waOpen(num,text){const n=waNum(num);if(!n){toast('ما في رقم وا
 let V={cat:'all', q:'', sort:'feat', off:false, stock:false};
 let cart={};   // id -> qty
 let cnotes={}; // id -> note
+const CK='mountak_cart';
+function saveCart(){try{localStorage.setItem(CK,JSON.stringify({c:cart,n:cnotes}));}catch(e){}}
+function loadCart(){
+  try{
+    const r=JSON.parse(localStorage.getItem(CK)||'{}');
+    const c=r.c||{},n=r.n||{};
+    cart={};cnotes={};
+    Object.keys(c).forEach(id=>{if(prod(id)&&c[id]>0)cart[id]=c[id];});
+    Object.keys(n).forEach(id=>{if(cart[id])cnotes[id]=n[id];});
+  }catch(e){cart={};cnotes={};}
+}
 let tq={};     // id -> stepper qty on card
 let lastOrder=null;
 
@@ -1003,6 +1022,7 @@ const cartLines=()=>Object.keys(cart).filter(id=>cart[id]>0&&prod(id));
 const cartSub=()=>cartLines().reduce((s,id)=>s+cart[id]*prod(id).price,0);
 function dlvFee(sub){return sub>=D.set.freeAbove?0:D.set.dlv;}
 function rBadges(){
+  saveCart(); // السلة بتضل محفوظة حتى لو سكّر التطبيق
   const n=cartLines().length;
   const b=$('#cartBdg');b.textContent=n||'';b.classList.remove('pop');void b.offsetWidth;if(n)b.classList.add('pop');
   const bar=$('#cartbar');
@@ -1509,13 +1529,24 @@ async function doLogin(){
   }
   pendingLogin=null;
   if(!isHash(f.pass)){f.pass=await sha(p);save();}
-  sess=f;$('#lgU').value='';$('#lgP').value='';
+  sess=f;try{localStorage.setItem(SSK,f.id);}catch(e){}
+  $('#lgU').value='';$('#lgP').value='';
   document.body.classList.add('mStaff');
   closeSheets();A.tab=f.role==='editor'?'prods':'ords';rStaff();
   const bn=$('#instBn');if(bn)bn.style.display='none';
   toast('أهلا '+f.nm+' 👋');
 }
-function logout(){sess=null;document.body.classList.remove('mStaff');applyBranding();rShelf();rGrid();rBadges();}
+const SSK='mountak_sess';
+function logout(){sess=null;try{localStorage.removeItem(SSK);}catch(e){}document.body.classList.remove('mStaff');applyBranding();rShelf();rGrid();rBadges();}
+function restoreSess(){
+  try{
+    const id=localStorage.getItem(SSK);if(!id)return;
+    const f=user(id);
+    if(!f){localStorage.removeItem(SSK);return;}
+    sess=f;document.body.classList.add('mStaff');
+    A.tab=f.role==='editor'?'prods':'ords';
+  }catch(e){}
+}
 
 /* ---------- staff panel ---------- */
 let A={tab:'ords', of:'all', ps:''};
@@ -2069,7 +2100,7 @@ function pwaInstall(){
 })();
 
 /* ---------- init ---------- */
-load();loadCSess();fbInit();applyBranding();rShelf();rGrid();rBadges();
+load();loadCSess();loadCart();restoreSess();fbInit();applyBranding();rShelf();rGrid();rBadges();if(sess)rStaff();
 </script>
 </body>
 </html>
