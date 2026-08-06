@@ -81,6 +81,17 @@ h1,h2,h3{margin:0; line-height:1.35}
 .pickth{width:56px; height:56px; border-radius:12px; border:1.5px solid var(--line); background:var(--soft); display:flex; align-items:center; justify-content:center; font-size:26px; overflow:hidden; flex:none}
 .pickth img{width:100%; height:100%; object-fit:cover}
 .pickbtns{display:flex; gap:6px; flex-wrap:wrap}
+.pickstrip{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px}
+.pickstrip .pth{position:relative; width:62px; height:62px; border-radius:12px; border:2px solid var(--line); background:var(--soft); overflow:hidden; display:flex; align-items:center; justify-content:center; font-size:24px}
+.pickstrip .pth img{width:100%; height:100%; object-fit:cover}
+.pickstrip .pth.main{border-color:var(--olv)}
+.pickstrip .pth .tag{position:absolute; bottom:0; right:0; left:0; background:var(--olv); color:#fff; font-size:9px; font-weight:800; text-align:center; padding:1px 0}
+.pickstrip .pth .px{position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:7px; border:0; background:rgba(190,62,48,.95); color:#fff; font-size:10px; font-weight:900; line-height:18px; padding:0}
+.morep{position:absolute; bottom:6px; right:6px; background:rgba(44,65,32,.82); color:#fff; font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:99px}
+.pimg{position:relative}
+.lb-ar{position:absolute; top:50%; transform:translateY(-50%); width:46px; height:46px; border-radius:14px; border:0; background:rgba(255,255,255,.16); color:#fff; font-size:22px; font-weight:900}
+.lb-ar.n{right:14px}.lb-ar.p{left:14px}
+#lbCnt{color:rgba(255,255,255,.85); font-weight:800; font-size:13px}
 #instBn{position:fixed; left:12px; right:12px; bottom:88px; z-index:58; background:var(--olv-d); color:#fff; border-radius:16px;
   padding:12px 14px; display:none; align-items:center; justify-content:space-between; gap:10px; box-shadow:0 14px 34px rgba(30,35,20,.35)}
 @media(min-width:760px){#instBn{left:auto; right:50%; transform:translateX(50%); width:520px}}
@@ -565,18 +576,16 @@ footer button{border:0; background:transparent; color:var(--olv); font-weight:80
       <div class="fld"><label>السعر القديم (للعرض 🔥)</label><input id="pfOld" type="number" step="0.05" min="0" inputmode="decimal" dir="ltr" placeholder="اتركه فاضي إذا ما في عرض"></div>
       <div class="fld"><label>إيموجي المنتج</label><input id="pfEmoji" placeholder="🍅" maxlength="4"></div>
     </div>
-    <div class="fld"><label>صورة المنتج — صوّرها أو نقّيها من المعرض 📸</label>
-      <div class="pickrow">
-        <div class="pickth" id="pfTh">📷</div>
-        <div class="pickbtns">
-          <button type="button" class="btn sm" data-a="pfShoot">📷 كاميرا</button>
-          <button type="button" class="btn gh sm" data-a="pfPickG">🖼️ المعرض</button>
-          <button type="button" class="btn gh sm" data-a="pfClrImg">🗑️</button>
-        </div>
+    <div class="fld"><label>صور المنتج — لحد ٥ صور (للألوان والموديلات) 📸 كبسة عالصورة بتخليها الأساسية</label>
+      <div class="pickstrip" id="pfStrip"></div>
+      <div class="pickbtns">
+        <button type="button" class="btn sm" data-a="pfShoot">📷 كاميرا</button>
+        <button type="button" class="btn gh sm" data-a="pfPickG">🖼️ المعرض (فيك تنقّي كذا صورة سوا)</button>
+        <button type="button" class="btn gh sm" data-a="pfClrImg">🗑️ الكل</button>
       </div>
-      <input id="pfImg" dir="ltr" placeholder="أو الصق رابط صورة (اختياري)">
+      <input id="pfImg" dir="ltr" placeholder="أو الصق رابط صورة وبتنضاف عالمجموعة (اختياري)">
       <input type="file" id="pfCam" accept="image/*" capture="environment" style="display:none">
-      <input type="file" id="pfGal" accept="image/*" style="display:none">
+      <input type="file" id="pfGal" accept="image/*" multiple style="display:none">
     </div>
     <div class="f2">
       <div class="fld"><label>الحالة</label><select id="pfStock"><option value="1">موجود ✅</option><option value="0">مقطوع ⛔</option></select></div>
@@ -651,7 +660,10 @@ footer button{border:0; background:transparent; color:var(--olv); font-weight:80
 <div id="instBn"></div>
 <div id="lightbox" data-a="lbClose">
   <button class="lb-x" data-a="lbClose">✕</button>
-  <img id="lbImg" alt="">
+  <button class="lb-ar p" id="lbPrevB" data-a="lbPrev">›</button>
+  <button class="lb-ar n" id="lbNextB" data-a="lbNext">‹</button>
+  <img id="lbImg" alt="" data-a="lbNext">
+  <div id="lbCnt"></div>
   <div class="lb-nm" id="lbNm"></div>
 </div>
 <div class="toast" id="toast"></div>
@@ -747,7 +759,8 @@ function seed(){
 
 /* ---------- data layer (localStorage cache + Firestore sync) ---------- */
 let D;
-function load(){ try{ const r=localStorage.getItem(LS); D=r?JSON.parse(r):seed(); }catch(e){ D=seed(); } if(!D.custs)D.custs=[]; if(!D.costs)D.costs=[]; if(!D.acts)D.acts=[]; if(D.set.ideas===undefined)D.set.ideas='';
+function load(){ try{ const r=localStorage.getItem(LS); D=r?JSON.parse(r):seed(); }catch(e){ D=seed(); } if(!D.custs)D.custs=[]; if(!D.costs)D.costs=[]; if(!D.acts)D.acts=[];
+  (D.prods||[]).forEach(p=>{if(!p.imgs)p.imgs=p.img?[p.img]:[];}); if(D.set.ideas===undefined)D.set.ideas='';
   D.users=D.users||[];ensureOwner();
   save(); }
 // حساب المالك: يُعاد إصلاحه تلقائياً محلياً وعلى السحابة إذا لقينا لائحة قديمة
@@ -1037,7 +1050,7 @@ function rGrid(){
     const img=p.img?`<img src="${esc(p.img)}" alt="" loading="lazy">`:esc(p.em||'🛒');
     return `<div class="card ${p.stock?'':'out'}" data-pid="${p.id}">
       ${off?`<span class="boff">🔥 عرض</span>`:''}${p.feat?`<span class="bfeat">⭐</span>`:''}
-      <div class="pimg"${p.img?` data-a="lbOpen" data-id="${p.id}"`:''}>${img}</div>
+      <div class="pimg"${p.img?` data-a="lbOpen" data-id="${p.id}"`:''}>${img}${(p.imgs&&p.imgs.length>1)?`<span class="morep">📷 ${p.imgs.length}</span>`:''}</div>
       <div class="pname">${esc(p.nm)}</div>
       <div class="prow"><span class="price num">${f$(p.price)}</span>${off?`<span class="old num">${f$(p.old)}</span>`:''}<span class="unitb">/ ${esc(unitName(p))}</span></div>
       <div class="ll num">≈ ${fLL(p.price)}</div>
@@ -1418,7 +1431,25 @@ function qrMatrix(text){
 }
 
 /* ---------- التقاط ورفع الصور (بتنضغط لتتخزّن بالسحابة) ---------- */
-let pfPick='',cfPick='';
+let pfPicks=[],cfPick='';
+const IMGS_MAX=5, IMGS_TOTAL=650000; // ~٥ صور مضغوطة بأمان ضمن حدود Firestore
+const LB={list:[],i:0,nm:''};
+function rLB(){
+  $('#lbImg').src=LB.list[LB.i]||'';
+  $('#lbNm').textContent=LB.nm;
+  const multi=LB.list.length>1;
+  $('#lbCnt').textContent=multi?((LB.i+1)+' / '+LB.list.length):'';
+  $('#lbPrevB').style.display=multi?'':'none';
+  $('#lbNextB').style.display=multi?'':'none';
+}
+function rPfStrip(){
+  const st=$('#pfStrip');if(!st)return;
+  st.innerHTML=pfPicks.length?pfPicks.map((im,i)=>`<div class="pth ${i===0?'main':''}" data-a="pfMkMain" data-i="${i}">
+      <img src="${esc(im)}" alt=""><button type="button" class="px" data-a="pfRmImg" data-i="${i}">✕</button>
+      ${i===0?'<span class="tag">الأساسية</span>':''}
+    </div>`).join('')
+  :'<div class="pth">📷</div>';
+}
 function fileToDataURL(file){return new Promise((res,rej)=>{
   if(!file||!/^image\//.test(file.type))return rej(new Error('bad'));
   const r=new FileReader();
@@ -1448,9 +1479,14 @@ function rPickTh(sel,data,url,em){
 }
 async function pickFile(kind,file){
   try{
+    if(kind==='pf'&&pfPicks.length>=IMGS_MAX)return toast('الحد الأقصى '+IMGS_MAX+' صور للمنتج');
     toast('⏳ عم جهّز الصورة…');
     const d=await fileToDataURL(file);
-    if(kind==='pf'){pfPick=d;$('#pfImg').value='';rPickTh('#pfTh',pfPick,'',$('#pfEmoji').value);}
+    if(kind==='pf'){
+      const tot=pfPicks.reduce((t,x)=>t+x.length,0)+d.length;
+      if(tot>IMGS_TOTAL)return toast('الصور صارت كبيرة — احذف وحدة أو صغّرها');
+      pfPicks.push(d);rPfStrip();
+    }
     else{cfPick=d;rPickTh('#cfTh',cfPick,'',$('#cfEmoji').value);}
     toast('✅ الصورة جاهزة ('+Math.round(d.length*0.75/1024)+'KB) — لا تنسى تكبس حفظ');
   }catch(e){toast('ما زبطت هالصورة — جرّب غيرها');}
@@ -1909,9 +1945,9 @@ function prodForm(id){
   $('#pfPrice').value=p?p.price:'';
   $('#pfOld').value=p&&p.old?p.old:'';
   $('#pfEmoji').value=p?p.em:'';
-  pfPick=(p&&p.img&&p.img.startsWith('data:'))?p.img:'';
-  $('#pfImg').value=(p&&p.img&&!p.img.startsWith('data:'))?p.img:'';
-  rPickTh('#pfTh',pfPick,$('#pfImg').value,p?p.em:'');
+  pfPicks=p?(p.imgs?p.imgs.slice():(p.img?[p.img]:[])):[];
+  $('#pfImg').value='';
+  rPfStrip();
   $('#pfStock').value=p?(p.stock?'1':'0'):'1';
   $('#pfFeat').value=p?(p.feat?'1':'0'):'0';
   $('#pfCostW').style.display=sess&&sess.role==='admin'?'':'none';
@@ -1932,8 +1968,12 @@ function saveProd(){
   const obj={nm, cat:$('#pfCat').value, unit,
     step:unit==='kg'?parseFloat($('#pfStep').value)||0.5:1,
     price, old:parseFloat($('#pfOld').value)||0,
-    em:$('#pfEmoji').value.trim()||'🛒', img:pfPick||$('#pfImg').value.trim(),
+    em:$('#pfEmoji').value.trim()||'🛒',
     stock:$('#pfStock').value==='1', feat:$('#pfFeat').value==='1'};
+  const uadd=$('#pfImg').value.trim();
+  let imgs=pfPicks.slice(0,IMGS_MAX);
+  if(uadd&&!imgs.includes(uadd)&&imgs.length<IMGS_MAX)imgs.push(uadd);
+  obj.imgs=imgs;obj.img=imgs[0]||'';
   const sq=$('#pfStq').value.trim();
   obj.stq=sq===''?null:Math.max(0,parseFloat(sq)||0);
   if(obj.stq===0)obj.stock=false;
@@ -2094,11 +2134,15 @@ document.addEventListener('click',e=>{
     case 'waCustDir':{const c=custById(id);if(c)waOpen(c.phone,'مرحبا '+c.nm+' 👋 معك '+D.set.name);break;}
     case 'delCust':delCust(id);break;
     case 'pwaInstall':pwaInstall();break;
-    case 'lbOpen':{const pp=prod(id);if(pp&&pp.img){$('#lbImg').src=pp.img;$('#lbNm').textContent=pp.nm;$('#lightbox').classList.add('on');}break;}
+    case 'lbOpen':{const pp=prod(id);if(pp&&pp.img){LB.list=(pp.imgs&&pp.imgs.length?pp.imgs:[pp.img]);LB.i=0;LB.nm=pp.nm;rLB();$('#lightbox').classList.add('on');}break;}
+    case 'lbNext':if(LB.list.length<2){$('#lightbox').classList.remove('on');}else{LB.i=(LB.i+1)%LB.list.length;rLB();}break;
+    case 'lbPrev':if(LB.list.length>1){LB.i=(LB.i-1+LB.list.length)%LB.list.length;rLB();}break;
     case 'lbClose':$('#lightbox').classList.remove('on');break;
     case 'pfShoot':$('#pfCam').click();break;
     case 'pfPickG':$('#pfGal').click();break;
-    case 'pfClrImg':pfPick='';$('#pfImg').value='';rPickTh('#pfTh','','',$('#pfEmoji').value);break;
+    case 'pfClrImg':pfPicks=[];$('#pfImg').value='';rPfStrip();break;
+    case 'pfMkMain':{const i=+e.target.closest('[data-i]').dataset.i;if(i>0){const[x]=pfPicks.splice(i,1);pfPicks.unshift(x);rPfStrip();toast('صارت الصورة الأساسية ⭐');}break;}
+    case 'pfRmImg':{const i=+e.target.closest('[data-i]').dataset.i;pfPicks.splice(i,1);rPfStrip();break;}
     case 'cfShoot':$('#cfCam').click();break;
     case 'cfPickG':$('#cfGal').click();break;
     case 'cfClrImg':cfPick='';rPickTh('#cfTh','','',$('#cfEmoji').value);break;
@@ -2151,7 +2195,6 @@ document.addEventListener('click',e=>{
   }
 });
 document.addEventListener('input',e=>{
-  if(e.target.id==='pfImg'){pfPick='';rPickTh('#pfTh','',e.target.value.trim(),$('#pfEmoji').value);}
   const el=e.target;
   if(el.id==='q'){V.q=el.value;rGrid();}
   else if(el.id==='pSearch'){A.ps=el.value;
@@ -2163,7 +2206,7 @@ document.addEventListener('change',e=>{
   if(el.id==='sortSel'){V.sort=el.value;rGrid();}
   else if(el.id==='ufRole'){$('#ufPartW').style.display=el.value==='partner'?'':'none';}
   else if(el.id==='pfUnit'){$('#pfStepW').style.display=el.value==='kg'?'':'none';$('#pfUnitC').style.display=el.value==='__c'?'':'none';}
-  else if(el.id==='pfCam'||el.id==='pfGal'){if(el.files&&el.files[0])pickFile('pf',el.files[0]);el.value='';}
+  else if(el.id==='pfCam'||el.id==='pfGal'){if(el.files)[...el.files].forEach(f=>pickFile('pf',f));el.value='';}
   else if(el.id==='cfCam'||el.id==='cfGal'){if(el.files&&el.files[0])pickFile('cf',el.files[0]);el.value='';}
   else if(el.dataset.assign){assign(el.dataset.assign,el.value);}
 });
