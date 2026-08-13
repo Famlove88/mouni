@@ -796,6 +796,11 @@ const COLS=['prods','cats','users','custs','orders','costs','acts'];
 let fdb=null,fAuth=null,applying=false,firstSnap={},cloudCounts={};
 let shadow={prods:{},cats:{},users:{},custs:{},orders:{},costs:{},acts:{},_set:'',_seq:0};
 function shadowFromLocal(){COLS.forEach(c=>{shadow[c]={};(D[c]||[]).forEach(r=>shadow[c][r.id]=JSON.stringify(r));});shadow._set=JSON.stringify(D.set);shadow._seq=D.seq;}
+const CMAIL_DOM='@c.mountak.app'; // إيميل داخلي للزبون مبني ع رقمو — الزبون ما بيشوفو
+const custMail=phone=>String(phone).replace(/\D/g,'')+CMAIL_DOM;
+const staffAuthed=()=>!!(fAuth&&fAuth.currentUser&&!fAuth.currentUser.isAnonymous&&!(fAuth.currentUser.email||'').endsWith(CMAIL_DOM));
+const custAuthed=()=>!!(fAuth&&fAuth.currentUser&&(fAuth.currentUser.email||'').endsWith(CMAIL_DOM));
+const authUid=()=>fAuth&&fAuth.currentUser?fAuth.currentUser.uid:null;
 function fbInit(){
   if(!(window.firebase&&firebase.initializeApp))return; // بالمعاينة أو أوفلاين: بتضل نسخة محلية
   try{
@@ -803,18 +808,50 @@ function fbInit(){
     fdb=firebase.firestore();fAuth=firebase.auth();
     try{fdb.enablePersistence({synchronizeTabs:true}).catch(()=>{});}catch(e){}
     shadowFromLocal();
-    fAuth.onAuthStateChanged(u=>{rCloudCard();rLgLink();cloudPush();if(u&&fdb){listenCol('users');listenCol('costs');listenCol('acts');}});
+    fAuth.onAuthStateChanged(u=>{
+      if(!u){try{fAuth.signInAnonymously().catch(()=>{});}catch(e){} }
+      rCloudCard();rLgLink();cloudPush();
+      if(fdb){
+        listenCol('orders');listenCustDoc();
+        if(staffAuthed()){listenCol('users');listenCol('costs');listenCol('acts');listenCol('custs');}
+      }
+    });
     startSync();
   }catch(e){fdb=null;fAuth=null;}
+}
+/* زبون: بيسمع بس ملفّو الشخصي */
+let custDocUnsub=null;
+function listenCustDoc(){
+  if(custDocUnsub){try{custDocUnsub();}catch(e){}custDocUnsub=null;}
+  if(!fdb||staffAuthed())return;
+  const uid=authUid();if(!uid)return;
+  custDocUnsub=fdb.collection('custs').doc(uid).onSnapshot(d=>{
+    applying=true;
+    if(d.exists){
+      const rec=Object.assign({},d.data(),{id:d.id});
+      const i=D.custs.findIndex(x=>x.id===d.id);
+      if(i>-1)D.custs[i]=rec;else D.custs.push(rec);
+      shadow.custs[d.id]=JSON.stringify(rec);
+      if(custAuthed()){csess=rec;try{localStorage.setItem(LSS,rec.id);}catch(e){}}
+    }
+    rAcctBtn();saveLocal();applying=false;
+  },()=>{});
 }
 const subs={};
 function listenCol(col){
   if(subs[col]){try{subs[col]();}catch(e){}}
-  subs[col]=fdb.collection(col).onSnapshot(snap=>{
+  if(!staffAuthed()&&['users','costs','acts','custs'].includes(col))return; // محمية — بس لأجهزة المحل
+  let ref=fdb.collection(col);
+  if(col==='orders'&&!staffAuthed()){
+    const uid=authUid();if(!uid)return;
+    ref=ref.where('au','==',uid); // الزبون بيشوف طلباتو بس
+  }
+  subs[col]=ref.onSnapshot(snap=>{
       applying=true;cloudCounts[col]=snap.size;
-      if(!firstSnap[col]){
+      const replaceAlways=(col==='orders'&&!staffAuthed());
+      if(!firstSnap[col]||replaceAlways){
         firstSnap[col]=1;
-        if(snap.size>0){
+        if(snap.size>0||replaceAlways){
           D[col]=snap.docs.map(d=>Object.assign({},d.data(),{id:d.id}));
           shadow[col]={};D[col].forEach(r=>shadow[col][r.id]=JSON.stringify(r));
         }
@@ -865,7 +902,8 @@ function startSync(){
 function cloudPush(){
   if(!fdb||applying)return;
   try{
-    COLS.forEach(col=>{
+    const pushCols=staffAuthed()?COLS:['orders']; // جهاز الزبون بيبعت طلباتو بس؛ ملفّو بينكتب مباشرة
+    pushCols.forEach(col=>{
       const b=fdb.batch();let n=0;const cur={};
       (D[col]||[]).forEach(r=>{cur[r.id]=1;const j=JSON.stringify(r);
         if(shadow[col][r.id]!==j){b.set(fdb.collection(col).doc(r.id),JSON.parse(j),{merge:true});shadow[col][r.id]=j;n++;}});
@@ -873,7 +911,7 @@ function cloudPush(){
       if(n)b.commit().catch(()=>{});
     });
     const js=JSON.stringify(D.set);
-    if(shadow._set!==js){shadow._set=js;fdb.collection('meta').doc('set').set(JSON.parse(js),{merge:true}).catch(()=>{});}
+    if(staffAuthed()&&shadow._set!==js){shadow._set=js;fdb.collection('meta').doc('set').set(JSON.parse(js),{merge:true}).catch(()=>{});}
     if(shadow._seq!==D.seq){shadow._seq=D.seq;fdb.collection('meta').doc('seq').set({n:D.seq},{merge:true}).catch(()=>{});}
   }catch(e){}
 }
@@ -1132,6 +1170,7 @@ async function sendOrder(){
   if(phone.replace(/\D/g,'').length<7)return toast('رقم التلفون مش مزبوط');
   const L=cartLines();if(!L.length)return;
   if(btn)btn.disabled=true;
+  if(fdb&&fAuth&&!fAuth.currentUser){try{await fAuth.signInAnonymously();}catch(e){}}
   let no;
   if(fdb){
     try{
@@ -1144,10 +1183,11 @@ async function sendOrder(){
   const sub=cartSub(),dlv=dlvFee(sub);
   const o={id:uid(),no,ts:now(),name,phone,area,addr,note,items,
            sub:Math.round(sub*100)/100,dlv,total:Math.round((sub+dlv)*100)/100,
-           cust:csess?csess.id:null,
+           cust:csess?csess.id:null, au:authUid(),
            status:'new',worker:null,log:[{s:'new',ts:now()}]};
   D.orders.unshift(o);
-  if(csess){csess.nm=name;csess.phone=phone;csess.area=area;csess.addr=addr;}
+  if(csess){csess.nm=name;csess.phone=phone;csess.area=area;csess.addr=addr;
+    if(fdb&&custAuthed())fdb.collection('custs').doc(csess.id).set({nm:name,phone,area,addr},{merge:true}).catch(()=>{});}
   save();
   try{localStorage.setItem(LSC,JSON.stringify({name,phone,area,addr}));}catch(e){}
   lastOrder=o;cart={};cnotes={};rBadges();rGrid();
@@ -1522,7 +1562,7 @@ function openShare(){
 const LSS='mountak_csess';
 let csess=null;
 const custById=id=>(D.custs||[]).find(c=>c.id===id);
-function loadCSess(){try{const id=localStorage.getItem(LSS);csess=id?custById(id):null;if(id&&!csess)localStorage.removeItem(LSS);}catch(e){csess=null;}rAcctBtn();}
+function loadCSess(){try{const id=localStorage.getItem(LSS);csess=id?custById(id):null;}catch(e){csess=null;}rAcctBtn();} // بالسحابة: بترجع الجلسة من Firebase Auth لحالها
 function rAcctBtn(){const d=$('#acctDot');if(d)d.classList.toggle('on',!!csess);}
 function setCSess(c){csess=c;try{localStorage.setItem(LSS,c.id);}catch(e){}rAcctBtn();}
 function openAcct(){
@@ -1543,23 +1583,57 @@ async function custSignup(){
   if(!nm)return toast('الاسم مطلوب');
   const pd=phone.replace(/\D/g,'');
   if(pd.length<7)return toast('رقم التلفون مش مزبوط');
-  if(pass.length<4)return toast('كلمة السر لازم تكون ٤ خانات على الأقل');
-  if(D.custs.some(c=>c.phone.replace(/\D/g,'')===pd))return toast('هالرقم مسجّل من قبل — فيك تسجّل دخول');
-  const c={id:uid(),nm,phone,pass:await sha(pass),area,addr,ts:now()};
-  D.custs.push(c);save();setCSess(c);
+  if(pass.length<6)return toast('كلمة السر لازم تكون ٦ خانات على الأقل');
+  if(fdb&&fAuth){
+    if(staffAuthed())return toast('هالجهاز مربوط كجهاز محل — افتح حساب الزبون من تلفون تاني');
+    try{
+      const cred=await fAuth.createUserWithEmailAndPassword(custMail(pd),pass);
+      const rec={nm,phone,area,addr,ts:now()};
+      await fdb.collection('custs').doc(cred.user.uid).set(rec,{merge:true});
+      csess=Object.assign({id:cred.user.uid},rec);
+      try{localStorage.setItem(LSS,cred.user.uid);}catch(e){}
+      const i=D.custs.findIndex(x=>x.id===cred.user.uid);
+      if(i>-1)D.custs[i]=csess;else D.custs.push(csess);
+      saveLocal();rAcctBtn();listenCustDoc();
+    }catch(err){
+      if(err&&err.code==='auth/email-already-in-use')return toast('هالرقم مسجّل من قبل — فيك تسجّل دخول');
+      if(err&&err.code==='auth/weak-password')return toast('كلمة السر ضعيفة — خليها ٦ خانات وأكثر');
+      return toast('ما زبط التسجيل — جرّب كمان مرة');
+    }
+  }else{
+    if(D.custs.some(c=>c.phone.replace(/\D/g,'')===pd))return toast('هالرقم مسجّل من قبل — فيك تسجّل دخول');
+    const c={id:uid(),nm,phone,pass:await sha(pass),area,addr,ts:now()};
+    D.custs.push(c);save();setCSess(c);
+  }
   $('#cuName').value='';$('#cuPhone').value='';$('#cuPass').value='';$('#cuArea').value='';$('#cuAddr').value='';
   closeSheets();toast('أهلا وسهلا فيك '+nm+' 🎉');
 }
 async function custLogin(){
   const pd=$('#ciPhone').value.replace(/\D/g,''),pass=$('#ciPass').value;
-  const c=D.custs.find(x=>x.phone.replace(/\D/g,'')===pd);
-  const ok=c&&(isHash(c.pass)?c.pass===await sha(pass):c.pass===pass);
-  if(!ok)return toast('الرقم أو كلمة السر غلط');
-  if(!isHash(c.pass)){c.pass=await sha(pass);save();}
-  setCSess(c);$('#ciPhone').value='';$('#ciPass').value='';
-  closeSheets();toast('أهلا فيك من جديد '+c.nm+' 👋');
+  if(pd.length<7)return toast('رقم التلفون مش مزبوط');
+  if(fdb&&fAuth){
+    if(staffAuthed())return toast('هالجهاز مربوط كجهاز محل — حساب الزبون من تلفون تاني');
+    try{
+      const cred=await fAuth.signInWithEmailAndPassword(custMail(pd),pass);
+      try{localStorage.setItem(LSS,cred.user.uid);}catch(e){}
+      listenCustDoc();
+      $('#ciPhone').value='';$('#ciPass').value='';
+      closeSheets();toast('أهلا فيك من جديد 👋');
+    }catch(err){return toast('الرقم أو كلمة السر غلط');}
+  }else{
+    const c=D.custs.find(x=>x.phone.replace(/\D/g,'')===pd);
+    const ok=c&&(isHash(c.pass)?c.pass===await sha(pass):c.pass===pass);
+    if(!ok)return toast('الرقم أو كلمة السر غلط');
+    if(!isHash(c.pass)){c.pass=await sha(pass);save();}
+    setCSess(c);$('#ciPhone').value='';$('#ciPass').value='';
+    closeSheets();toast('أهلا فيك من جديد '+c.nm+' 👋');
+  }
 }
-function custLogout(){csess=null;try{localStorage.removeItem(LSS);}catch(e){}rAcctBtn();closeSheets();toast('تمّ تسجيل الخروج — منتظرينك دايماً 🙏');}
+function custLogout(){
+  csess=null;try{localStorage.removeItem(LSS);}catch(e){}
+  if(fdb&&fAuth&&custAuthed()){try{fAuth.signOut();}catch(e){}} // onAuthStateChanged بيرجع يفوت anonymous لحالو
+  rAcctBtn();closeSheets();toast('تمّ تسجيل الخروج — منتظرينك دايماً 🙏');
+}
 function custSave(){
   if(!csess)return;
   const nm=$('#acName').value.trim(),phone=$('#acPhone').value.trim(),
@@ -1567,8 +1641,12 @@ function custSave(){
   if(!nm)return toast('الاسم مطلوب');
   const pd=phone.replace(/\D/g,'');
   if(pd.length<7)return toast('رقم التلفون مش مزبوط');
-  if(D.custs.some(c=>c.id!==csess.id&&c.phone.replace(/\D/g,'')===pd))return toast('هالرقم مستخدم بحساب تاني');
-  csess.nm=nm;csess.phone=phone;csess.area=area;csess.addr=addr;save();
+  if(!fdb&&D.custs.some(c=>c.id!==csess.id&&c.phone.replace(/\D/g,'')===pd))return toast('هالرقم مستخدم بحساب تاني');
+  csess.nm=nm;csess.phone=phone;csess.area=area;csess.addr=addr;
+  if(fdb&&custAuthed()){
+    fdb.collection('custs').doc(csess.id).set({nm,phone,area,addr},{merge:true}).catch(()=>{});
+    shadow.custs[csess.id]=JSON.stringify(csess);saveLocal();
+  }else save();
   toast('تمّ حفظ معلوماتك ✅');
 }
 function rMyOrders(){
