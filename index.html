@@ -649,6 +649,7 @@ footer button{border:0; background:transparent; color:var(--olv); font-weight:80
       <div id="ufPartW" style="display:none">
         <div class="fld"><label>أصناف الشريك — علّم يلي إلو (ما بيشوف غيرها)</label><div id="ufCats" class="filters" style="flex-wrap:wrap"></div></div>
         <div class="fld"><label>نسبة المحل من مبيعاتو %</label><input id="ufPct" type="number" min="0" max="90" step="0.5" inputmode="decimal" dir="ltr" placeholder="مثلاً 10"></div>
+        <p class="hint">📱 لا تنسى تعبّي رقم الواتساب فوق — هو يلي بيفعّل زر 💬 بتوزيع الطلبات.</p>
       </div>
     </div>
   </div>
@@ -760,7 +761,7 @@ function seed(){
   ];
   return {
     set:{name:'مونتك', tag:'غراض بيتك واصلين لعندك 🛵', wa:'96103123456', rate:89500, dlv:1, freeAbove:20, minOrder:3,
-         open:true, hours:'كل يوم من ٨ الصبح لـ ١٠ المسا', aiKey:'', ideas:'', vapid:''},
+         open:true, hours:'كل يوم من ٨ الصبح لـ ١٠ المسا', aiKey:'', ideas:'', vapid:'', gKey:''},
     cats:C, prods:P, users:U, orders:O, custs:[], costs:[], acts:[], seq:3
   };
 }
@@ -768,7 +769,7 @@ function seed(){
 /* ---------- data layer (localStorage cache + Firestore sync) ---------- */
 let D;
 function load(){ try{ const r=localStorage.getItem(LS); D=r?JSON.parse(r):seed(); }catch(e){ D=seed(); } if(!D.custs)D.custs=[]; if(!D.costs)D.costs=[]; if(!D.acts)D.acts=[];
-  (D.prods||[]).forEach(p=>{if(!p.imgs)p.imgs=p.img?[p.img]:[];}); if(D.set.ideas===undefined)D.set.ideas='';if(D.set.vapid===undefined)D.set.vapid='';
+  (D.prods||[]).forEach(p=>{if(!p.imgs)p.imgs=p.img?[p.img]:[];}); if(D.set.ideas===undefined)D.set.ideas='';if(D.set.vapid===undefined)D.set.vapid='';if(D.set.gKey===undefined)D.set.gKey='';
   D.users=D.users||[];ensureOwner();
   save(); }
 // حساب المالك: يُعاد إصلاحه تلقائياً محلياً وعلى السحابة إذا لقينا لائحة قديمة
@@ -781,7 +782,7 @@ function vendorGroups(o){
   o.items.forEach(it=>{
     const c=itemCat(it),pr=c?partnerOfCat(c):null;
     const k=pr?pr.id:'shop';
-    if(!g[k])g[k]={id:k,nm:pr?pr.nm:D.set.name,phone:pr?pr.phone:'',pct:pr?(pr.pct||0):0,items:[]};
+    if(!g[k])g[k]={id:k,nm:pr?pr.nm:D.set.name,phone:pr?pr.phone:(D.set.wa||''),pct:pr?(pr.pct||0):0,items:[]};
     g[k].items.push(it);
   });
   return Object.values(g);
@@ -1302,6 +1303,7 @@ async function aiCall(q){
     +'جاوب حصراً بصيغة JSON صافية بدون أي نص إضافي وبدون markdown: '
     +'{"reply":"جملة أو جملتين باللهجة اللبنانية تشرح الاقتراح","items":[{"name":"اسم المنتج مطابق حرفياً من اللائحة","qty":عدد}]} '
     +'إذا الطلب ما إلو علاقة بالتسوق خليك لطيف ورجّع items فاضية.';
+  if(D.set.gKey)return aiGemini(q,sys); // النسخة المجانية من غوغل
   const headers={'Content-Type':'application/json'};
   if(D.set.aiKey){headers['x-api-key']=D.set.aiKey;headers['anthropic-version']='2023-06-01';headers['anthropic-dangerous-direct-browser-access']='true';}
   const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers,
@@ -1310,6 +1312,20 @@ async function aiCall(q){
   if(!res.ok)throw new Error('api');
   const data=await res.json();
   const text=(data.content||[]).map(b=>b.type==='text'?b.text:'').join('').replace(/```json|```/g,'').trim();
+  return JSON.parse(text);
+}
+async function aiGemini(q,sys){
+  const url='https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key='+encodeURIComponent(D.set.gKey);
+  const body={
+    system_instruction:{parts:[{text:sys}]},
+    contents:[...aiHist.map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]})),{role:'user',parts:[{text:q}]}],
+    generationConfig:{temperature:0.6,maxOutputTokens:800,responseMimeType:'application/json'}
+  };
+  const res=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!res.ok)throw new Error('gapi');
+  const data=await res.json();
+  const parts=(((data.candidates||[])[0]||{}).content||{}).parts||[];
+  const text=parts.map(p=>p.text||'').join('').replace(/```json|```/g,'').trim();
   return JSON.parse(text);
 }
 function aiLocal(q){
@@ -1932,6 +1948,7 @@ function rPanel(){
       <div class="fld"><label>ساعات الدوام</label><input id="sHours" value="${esc(S.hours)}"></div>
     </div>
     <div class="fld"><label>مفتاح الذكاء الاصطناعي (Anthropic API key — اختياري، لازم بس بعد النشر عالموقع)</label><input id="sAi" dir="ltr" value="${esc(S.aiKey)}" placeholder="sk-ant-…"></div>
+    <div class="fld"><label>🤖 مفتاح Gemini المجاني (Google AI Studio) — بيشغّل المساعد الذكي ببلاش</label><input id="sGKey" dir="ltr" value="${esc(S.gKey||'')}" placeholder="AIza…"></div>
     <div class="fld"><label>🔔 مفتاح الإشعارات (VAPID) — من الكونسول: Project settings ← Cloud Messaging ← Web Push certificates</label><input id="sVapid" dir="ltr" value="${esc(S.vapid||'')}" placeholder="B…"></div>
     <div class="fld"><label>🍲 أفكار المساعد الذكي — اكتب فكرة بكل سطر (طبخة اليوم، موسم مونة، عرض…) وعدّلها وقت ما بدك</label><textarea id="sIdeas" style="min-height:100px" placeholder="اليوم في كوسا فريش — يلا عالمحشي 🍆&#10;موسم كبيس الزيتون بلّش 🫒&#10;الجمعة تبولة: البقدونس واصل طازة">${esc(S.ideas||'')}</textarea></div>
     <button class="btn blk" data-a="saveSet">💾 حفظ الإعدادات</button>
@@ -1982,7 +1999,8 @@ function openOrder(id){
           <div><b>${grp.id==='shop'?'🧺':'🤝'} ${esc(grp.nm)}</b><div class="mini">${grp.items.map(i=>esc(i.nm)+' ×'+fQty(i.qty)).join('، ')}</div></div>
           <div style="display:flex;gap:6px;align-items:center">
             <span class="st ${ready?'done':'prep'}">${ready?'جاهز ✓':'عم يجهّز'}</span>
-            ${grp.phone?`<button class="btn wa sm" data-a="waVendor" data-id="${o.id}" data-v="${grp.id}">💬</button>`:''}
+            ${grp.phone?`<button class="btn wa sm" data-a="waVendor" data-id="${o.id}" data-v="${grp.id}">💬</button>`
+              :(admin&&grp.id!=='shop'?`<button class="btn gh sm" data-a="editUser" data-id="${grp.id}" title="ضيف رقم واتساب الشريك">＋📱</button>`:'')}
           </div>
         </div>`;}).join(''):'')(vendorGroups(o))}
     <div class="ph"><h3>الحالة</h3></div>
@@ -2214,6 +2232,7 @@ function saveSet(){
   S.hours=$('#sHours').value.trim();
   S.aiKey=$('#sAi').value.trim();
   S.vapid=$('#sVapid').value.trim();
+  S.gKey=$('#sGKey').value.trim();
   S.ideas=$('#sIdeas').value;
   logAct('⚙️ عدّل إعدادات المحل');
   save();applyBranding();toast('💾 انحفظت الإعدادات');
